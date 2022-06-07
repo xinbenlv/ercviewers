@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERC 721 Viewer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous" />
+    <link rel="stylesheet" href="main.css">
+</head>
+<body>
+    <div id="app">
+        <div class="conatiner">
+            <div class="px-4 py-3">
+                <div class="mb-3 input-group">
+                    <span class="input-group-text">My wallet</span>
+                    <input type="text"
+                        class="form-control"
+                        id="my_wallet_address"
+                        v-model="currentAccount"
+                        disabled placeholder="Please connect to metamask">
+                    <button class="btn"
+                    :class="currentAccount ? `btn-danger` : `btn-primary`"
+                    @click="toggleWalletConnection()">{{currentAccount ? `Disconnect` : `Connect`}}</button>
+                </div>
+
+            </div>
+            <div class="px-4 py-3" v-if="currentAccount">
+                <div class="mb-3 input-group">
+                    <span class="input-group-text">ERC721 Address</span>
+                    <input type="text" class="form-control" id="erc721_address" v-model="erc721address">
+                    <button class="btn btn-primary" @click="load()">Load</button>
+                </div> 
+            </div>
+
+            <div class="px-4 py-3" v-if="currentAccount && erc721address">
+                <span v-if="tokenName && tokenSymbol">{{tokenName}}({{tokenSymbol}})</span>
+                <div class="grid-canvas">
+                    <div class="grid-card card shadow-sm" v-for="holding of holdings"
+                        :style="{ 'background-image': `url(${holding.imageURI})` }">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"
+        type="application/javascript"></script>
+    <script src="https://unpkg.com/vue@3"></script>
+
+    <script type="module">
+        import { ERC721ABI } from "./abi.js";
+        import { extractImageURI } from "./utils.js";
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    currentAccount: '',
+                    chainId: '',
+                    erc721address: '',
+                    tokenSymbol: '',
+                    tokenName: '',
+                    totalSupply: 0,
+                    holdings: [],
+                }
+            },
+            methods: {
+                async toggleWalletConnection() {
+                    if (this.currentAccount) { // Disconnecting 
+                        console.log(`Now disconnecting!`);
+                        this.clearInfo(); 
+                    } else { // Connecting
+                        console.log(`Now connecting!`);
+                        let accounts = await window.ethereum
+                            .request({ method: 'eth_requestAccounts' });
+                        this.currentAccount = accounts[0];
+                        this.chainId = await ethereum.request({ method: 'eth_chainId' });
+                    }
+                },
+                clearInfo() {
+                    this.chainId = '';
+                    this.currentAccount = '';
+                    this.erc721address = '';
+                    this.tokenSymbol = '';
+                    this.tokenName = '';
+                    this.totalSupply = 0;
+                    this.holdings = [];
+                },
+                async load() {
+                    console.log(`Loading...`);
+                    if (ethers.utils.isAddress(this.erc721address)){
+                        console.log(`Loading at address ${this.erc721address}`);
+                        const provider = new ethers.providers.Web3Provider(window.ethereum);
+                        const signer = provider.getSigner();
+                        const contractInstance = new ethers.Contract(this.erc721address, ERC721ABI, provider);
+                        this.tokenSymbol = await contractInstance.symbol();
+                        this.tokenName = await contractInstance.name();
+                        this.totalSupply = await contractInstance.totalSupply();
+                        this.holdings = [];
+                        for (let i = 0; i < this.totalSupply; i++) {
+                            let tokenId = await contractInstance.tokenByIndex(i);
+                            let owner = await contractInstance.ownerOf(tokenId);
+                            let sourceURI = await contractInstance.tokenURI(tokenId);
+                            let imageURI = await extractImageURI(sourceURI);
+                            this.holdings.push({
+                                tokenId, owner, imageURI
+                            });
+                        }
+                        console.log(this.holdings);
+                    } else {
+                        console.log(`ERC721 Address is incorrect, got ${this.erc721address}`);
+                    }
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

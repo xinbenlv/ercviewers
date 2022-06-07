@@ -1,0 +1,10 @@
+.grid-canvas {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-gap: 20px;
+}
+
+.grid-card {
+    aspect-ratio: 1;
+    background-size: contain;
+}
